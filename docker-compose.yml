@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   # Food App Frontend
   food-app:
@@ -48,7 +46,7 @@ services:
 
   # Database Service (Example: MongoDB)
   database:
-    image: mongo:6.0-alpine
+    image: mongo:6.0.19-jammy
     container_name: food-app-db
     ports:
       - "27017:27017"
