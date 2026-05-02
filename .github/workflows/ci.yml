@@ -193,9 +193,9 @@ jobs:
 
       - name: Deploy using Docker Compose
         run: |
-          docker-compose down || true
-          docker-compose up -d
-          docker-compose ps
+          docker compose down || true
+          docker compose up -d
+          docker compose ps
 
       - name: Health Check
         run: |
