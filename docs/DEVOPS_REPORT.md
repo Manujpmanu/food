@@ -216,3 +216,144 @@ This report captures the current DevOps implementation, decisions made (frontend
 - upgrade Actions to Node 24-compatible versions and test a dry-run.
 
 -- End of report
+
+## What Is Needed Now
+
+For this repository, the most useful next step is not to split the document into separate files. Keeping everything in this single report is better because it gives you one place to explain the full flow end-to-end.
+
+### Recommended priority
+
+1. Keep the report as one file and continue expanding it here.
+2. Add release workflow details in the same report so maintainers can understand tagging and versioning.
+3. Update GitHub Actions action versions for Node 24 compatibility when you are ready to harden the pipeline for future runner changes.
+
+### Why this matters
+
+- A single report is easier to share, review, and submit as documentation.
+- Separate runbooks are useful operationally, but they are not required if the goal is a complete report format.
+- Node 24 compatibility is important for long-term CI stability, but it is a maintenance upgrade rather than an immediate blocker because the current workflow already succeeds.
+
+## Detailed Runbooks
+
+### Runbook 1: Successful CI Pipeline
+
+Purpose: verify that code changes move through lint, test, build, image push, and deploy without regressions.
+
+Steps:
+
+1. Push code to `main` or open a pull request.
+2. Confirm `CI/CD Pipeline` starts in GitHub Actions.
+3. Check job order:
+	- `Checkout & Install Dependencies`
+	- `Code Linting`
+	- `Unit Tests`
+	- `Build Application`
+	- `SonarQube Code Quality`
+	- `Docker Build & Push`
+	- `Deploy to Production`
+4. Verify each job completes successfully.
+5. Confirm the `Docker Build & Deploy` workflow finishes and does not hang on log streaming.
+
+Expected outcome: a successful image build, push to GHCR, and a deployed frontend container stack.
+
+### Runbook 2: Deployment Verification
+
+Purpose: confirm the application is serving traffic after deployment.
+
+Steps:
+
+1. Open the deployment host or GitHub Actions logs.
+2. Confirm the compose stack starts only the frontend service.
+3. Run:
+
+```bash
+docker compose ps
+docker compose logs --tail=200
+```
+
+4. Confirm the frontend health check passes on port `5173`.
+5. Open the application URL and validate the UI loads.
+
+Expected outcome: the Vite frontend responds successfully and no backend container is required.
+
+### Runbook 3: Rollback
+
+Purpose: restore service quickly if a new deployment is faulty.
+
+Steps:
+
+1. Identify the last known-good image tag from GHCR.
+2. Re-deploy that tag on the host.
+3. Restart the compose stack:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+4. Re-check logs and health.
+5. Document the incident and the rollback reason in the issue tracker.
+
+Expected outcome: traffic returns to a stable version.
+
+### Runbook 4: Workflow Maintenance
+
+Purpose: keep the CI/CD system healthy over time.
+
+Steps:
+
+1. Review GitHub Actions warnings monthly.
+2. Update Docker and Actions versions when deprecations appear.
+3. Validate branch protections and required checks.
+4. Re-run a dry deployment after any workflow update.
+5. Keep the report current with the exact commands used in the repo.
+
+Expected outcome: workflows remain reliable and do not break when runner platforms change.
+
+## Release Workflow Details
+
+This section explains how a release workflow should fit into the same report.
+
+### Purpose
+
+The release workflow is used to create a controlled production version. It makes the deployment traceable by tying an image to a git release tag.
+
+### Typical flow
+
+1. Merge validated changes into `main`.
+2. Create a git tag such as `v1.0.0`.
+3. Run a release workflow that:
+	- builds the image,
+	- tags it with the release version,
+	- pushes it to GHCR,
+	- optionally creates a GitHub Release note.
+4. Deploy the tagged image to production.
+
+### Why this is useful
+
+- It gives you immutable release points.
+- It makes rollback easier because every production version has a named tag.
+- It supports change management and auditability.
+
+## Node 24 Compatibility Update
+
+This repository currently works, but GitHub Actions already warns that several actions are using Node.js 20 internally.
+
+### What should eventually be updated
+
+- `actions/checkout`
+- `docker/build-push-action`
+- `docker/login-action`
+- `docker/metadata-action`
+- `docker/setup-buildx-action`
+
+### Why it matters
+
+- GitHub will change the default JavaScript runner version for actions.
+- Updating early reduces the risk of a broken build later.
+- It is a maintenance task, not a functional requirement for the current successful pipeline.
+
+### Recommendation
+
+Keep the current report as the single source of truth, then update the workflow section in this same file after the action versions are upgraded and verified.
+
