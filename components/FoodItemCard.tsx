@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Star, Plus, Minus, ThumbsUp } from 'lucide-react';
 import { MenuItem } from '../types';
 import { useCart } from '../context/CartContext';
@@ -12,6 +12,7 @@ const FoodItemCard: React.FC<Props> = ({ item }) => {
   const cartItem = cartItems.find(i => i.id === item.id);
   const quantity = cartItem?.quantity || 0;
   const isBestseller = item.votes > 100 && item.rating > 4.5;
+    const [imageSrc, setImageSrc] = useState(item.image);
 
   return (
     <div className="bg-white p-5 rounded-2xl border border-gray-100 hover:shadow-soft transition-all group">
@@ -47,7 +48,12 @@ const FoodItemCard: React.FC<Props> = ({ item }) => {
         {/* Image & Action Section */}
         <div className="flex flex-col items-center justify-start w-32 sm:w-36 relative shrink-0">
             <div className="w-32 h-28 sm:w-36 sm:h-32 rounded-xl overflow-hidden shadow-sm relative">
-                <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                <img
+                    src={imageSrc}
+                    alt={item.name}
+                    className="w-full h-full object-cover"
+                    onError={() => setImageSrc('https://images.unsplash.com/photo-1547592180-85f173990554?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80')}
+                />
             </div>
             
             {/* Add Button - Floating over image bottom */}

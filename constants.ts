@@ -55,6 +55,28 @@ export const RESTAURANTS: Restaurant[] = [
     image: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
     offers: ['Healthy Choice'],
     address: '202 Green Way, Parkside'
+  },
+  {
+    id: 'r6',
+    name: 'Curry Leaf Express',
+    cuisine: ['Indian', 'Street Food'],
+    rating: 4.4,
+    deliveryTime: '20-30 mins',
+    priceForTwo: '₹500 for two',
+    image: 'https://images.unsplash.com/photo-1565557623262-b51c2513a641?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+    offers: ['Late Night Favorites'],
+    address: '44 Station Road, Central'
+  },
+  {
+    id: 'r7',
+    name: 'Cloud Nine Desserts',
+    cuisine: ['Desserts', 'Bakery'],
+    rating: 4.7,
+    deliveryTime: '15-20 mins',
+    priceForTwo: '₹300 for two',
+    image: 'https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+    offers: ['Sweet Treats'],
+    address: '17 Baker Street, Midtown'
   }
 ];
 
@@ -80,4 +102,10 @@ export const MENU_ITEMS: MenuItem[] = [
 
   // Green Bowl
   { id: 'm12', restaurantId: 'r5', name: 'Quinoa Power Bowl', description: 'Quinoa, avocado, kale, chickpeas, lemon dressing.', price: 289, image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80', isVeg: true, rating: 4.8, votes: 110, category: 'Bowls' },
+  // Curry Leaf Express
+  { id: 'm13', restaurantId: 'r6', name: 'Chole Bhature', description: 'Puffed bhature served with spicy chickpea curry and pickled onions.', price: 219, image: 'https://images.unsplash.com/photo-1626132647523-66fcf5a33631?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80', isVeg: true, rating: 4.5, votes: 140, category: 'Street Food' },
+  { id: 'm14', restaurantId: 'r6', name: 'Kathi Roll', description: 'Flaky paratha rolled with spiced filling and mint chutney.', price: 179, image: 'https://images.unsplash.com/photo-1567188040759-8a4a7d1f7e0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80', isVeg: false, rating: 4.4, votes: 96, category: 'Street Food' },
+  // Cloud Nine Desserts
+  { id: 'm15', restaurantId: 'r7', name: 'Chocolate Lava Cake', description: 'Warm cake with a molten chocolate center and vanilla ice cream.', price: 249, image: 'https://images.unsplash.com/photo-1562440499-64c9a111f713?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80', isVeg: true, rating: 4.9, votes: 210, category: 'Desserts' },
+  { id: 'm16', restaurantId: 'r7', name: 'Biscoff Cheesecake', description: 'Creamy cheesecake with a buttery biscuit base and caramel drizzle.', price: 269, image: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80', isVeg: true, rating: 4.8, votes: 175, category: 'Desserts' },
 ];

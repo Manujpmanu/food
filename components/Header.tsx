@@ -2,6 +2,7 @@ import React from 'react';
 import { ShoppingBag, Search, Sparkles, MapPin, ChevronDown } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { formatDeliveryAddress, useDeliveryAddress } from '../context/DeliveryAddressContext';
 
 interface HeaderProps {
   onSearchClick: () => void;
@@ -10,13 +11,15 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ onSearchClick }) => {
   const { itemCount } = useCart();
   const location = useLocation();
+  const { deliveryAddress } = useDeliveryAddress();
+  const addressSummary = formatDeliveryAddress(deliveryAddress);
 
   return (
     <header className="sticky top-0 z-50 bg-white shadow-sm border-b border-gray-100 transition-all duration-300">
       <div className="max-w-6xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
         <div className="flex items-center gap-8">
             <Link to="/" className="flex items-center gap-2 group">
-                <span className="font-extrabold text-4xl italic tracking-tighter text-brand-600">zomato</span>
+                <span className="font-extrabold text-4xl italic tracking-tighter text-brand-600">tomatoez</span>
             </Link>
 
             {/* Location Selector Placeholder (Desktop) */}
@@ -24,7 +27,7 @@ const Header: React.FC<HeaderProps> = ({ onSearchClick }) => {
                 <MapPin size={20} className="text-brand-500" fill="currentColor" fillOpacity={0.2} />
                 <div className="flex flex-col leading-none justify-center">
                     <span className="font-bold text-gray-800 text-xs uppercase tracking-wide">Delivering to</span>
-                    <span className="truncate max-w-[200px] text-gray-600 font-medium">Home, 123 Green Street...</span>
+                  <span className="truncate max-w-[240px] text-gray-600 font-medium">{addressSummary}</span>
                 </div>
                 <ChevronDown size={14} />
             </div>

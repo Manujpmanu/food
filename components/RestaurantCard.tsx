@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Star, Clock } from 'lucide-react';
 import { Restaurant } from '../types';
 import { Link } from 'react-router-dom';
@@ -8,6 +8,8 @@ interface Props {
 }
 
 const RestaurantCard: React.FC<Props> = ({ data }) => {
+  const [imageSrc, setImageSrc] = useState(data.image);
+
   return (
     <Link to={`/restaurant/${data.id}`} className="group block h-full">
       <div className="relative bg-white rounded-2xl overflow-hidden shadow-card hover:shadow-float transition-all duration-300 ease-out h-full flex flex-col border border-transparent hover:border-gray-100 transform-gpu">
@@ -17,10 +19,11 @@ const RestaurantCard: React.FC<Props> = ({ data }) => {
           <div className="absolute inset-0 bg-gray-200 animate-pulse z-0"></div>
           
           <img 
-            src={data.image} 
+            src={imageSrc} 
             alt={data.name} 
             className="w-full h-full object-cover relative z-10 transition-transform duration-500 ease-out group-hover:scale-105 will-change-transform" 
             loading="lazy"
+            onError={() => setImageSrc('https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80')}
             style={{ backfaceVisibility: 'hidden' }}
           />
           

@@ -4,9 +4,10 @@ import RestaurantCard from '../components/RestaurantCard';
 import FoodItemCard from '../components/FoodItemCard';
 import { Search, X, Sparkles, Loader2, TrendingUp, ChevronRight, MapPin } from 'lucide-react';
 import Header from '../components/Header';
-import { getFoodRecommendations } from '../services/geminiService';
+import { getFoodRecommendations } from '../services/groqService';
 import { MenuItem, Restaurant } from '../types';
 import { useNavigate } from 'react-router-dom';
+import { useDeliveryAddress } from '../context/DeliveryAddressContext';
 
 const Home: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -16,6 +17,7 @@ const Home: React.FC = () => {
   const [restaurantResults, setRestaurantResults] = useState<Restaurant[]>([]);
   const [searchMode, setSearchMode] = useState<'normal' | 'ai'>('normal');
   const navigate = useNavigate();
+    const { deliveryAddress } = useDeliveryAddress();
 
   const handleSearch = async (e: React.FormEvent | string) => {
     const query = typeof e === 'string' ? e : searchQuery;
@@ -27,10 +29,11 @@ const Home: React.FC = () => {
     setSearchQuery(query); // Update input if called via chips
     
     if (searchMode === 'ai') {
-        const ids = await getFoodRecommendations(query);
-        const items = MENU_ITEMS.filter(item => ids.includes(item.id));
+        const { recommendedItemIds, nearbyRestaurantIds } = await getFoodRecommendations(query, deliveryAddress);
+        const items = MENU_ITEMS.filter(item => recommendedItemIds.includes(item.id));
+        const nearbyRestaurants = RESTAURANTS.filter(restaurant => nearbyRestaurantIds.includes(restaurant.id));
         setRecommendations(items);
-        setRestaurantResults([]);
+        setRestaurantResults(nearbyRestaurants);
     } else {
         // Simple client side filter
         const lower = query.toLowerCase();
@@ -145,7 +148,7 @@ const Home: React.FC = () => {
                         className={`flex-1 py-3 text-sm font-bold transition-all relative flex items-center justify-center gap-2 ${searchMode === 'ai' ? 'text-purple-600 bg-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'}`}
                     >
                         <Sparkles size={16} />
-                        Gemini AI Search
+                        AI Search
                         {searchMode === 'ai' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-600"></div>}
                     </button>
                 </div>
@@ -164,7 +167,7 @@ const Home: React.FC = () => {
                                     {/* Restaurant Results */}
                                     {restaurantResults.length > 0 && (
                                         <div>
-                                            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 px-1">Matching Restaurants</h3>
+                                            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 px-1">Nearby Restaurants</h3>
                                             <div className="space-y-3">
                                                 {restaurantResults.map(restaurant => (
                                                     <div 
@@ -219,7 +222,7 @@ const Home: React.FC = () => {
                                             </div>
                                             <div>
                                                 <h3 className="font-bold text-gray-800 text-xl">AI Assistant is ready</h3>
-                                                <p className="text-gray-500 mt-2 max-w-sm mx-auto">Tell me what you're craving or the occasion, and I'll suggest the perfect meal.</p>
+                                                <p className="text-gray-500 mt-2 max-w-sm mx-auto">Tell me what you're craving, and I’ll suggest dishes plus nearby restaurants based on your saved address.</p>
                                             </div>
                                             <div className="flex flex-wrap justify-center gap-2 max-w-md mx-auto">
                                                 <button onClick={() => handleSearch("Healthy lunch options")} className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-purple-400 hover:text-purple-600 transition-colors shadow-sm">"Healthy lunch"</button>
