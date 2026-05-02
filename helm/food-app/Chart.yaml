@@ -1,0 +1,6 @@
+apiVersion: v2
+name: food-app
+description: Lightweight Helm chart for food frontend app
+type: application
+version: 0.1.0
+appVersion: "latest"

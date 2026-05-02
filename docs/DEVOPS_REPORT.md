@@ -1,4 +1,4 @@
-# DevOps & CI/CD Report
+# DevOps, CI/CD, Docker, Kubernetes, Helm & Jenkins Implementation Report
 
 Date: 2026-05-02
 
@@ -6,111 +6,397 @@ Authors: Keerthi Narayan and Monish
 
 ## Table of Contents
 
-1. [Introduction](#1-introduction)
-2. [Project Scope and System Context](#2-project-scope-and-system-context)
-3. [Architecture Overview](#3-architecture-overview)
-4. [Continuous Integration Process](#4-continuous-integration-process)
-	- 4.5 [Jenkins Pipeline and Its Use](#45-jenkins-pipeline-and-its-use)
-5. [Container Build and Registry Strategy](#5-container-build-and-registry-strategy)
-6. [Continuous Deployment Process](#6-continuous-deployment-process)
-7. [Security and Quality Controls](#7-security-and-quality-controls)
-8. [Operational Management](#8-operational-management)
-9. [Release and Recovery Procedures](#9-release-and-recovery-procedures)
-10. [Migration Guidance](#10-migration-guidance)
-11. [Recommendations](#11-recommendations)
-12. [Appendix: Useful Commands](#12-appendix-useful-commands)
+1. [Executive Summary](#1-executive-summary)
+2. [Project Scope and Context](#2-project-scope-and-context)
+3. [Current Implementation Status](#3-current-implementation-status)
+4. [Docker Implementation (Detailed)](#4-docker-implementation-detailed)
+5. [Kubernetes Implementation (Detailed)](#5-kubernetes-implementation-detailed)
+6. [Helm Implementation (Detailed)](#6-helm-implementation-detailed)
+7. [Jenkins Pipeline Implementation (Detailed)](#7-jenkins-pipeline-implementation-detailed)
+8. [GitHub Actions CI/CD Status](#8-github-actions-cicd-status)
+9. [End-to-End Deployment Flows](#9-end-to-end-deployment-flows)
+10. [Validation and Verification Results](#10-validation-and-verification-results)
+11. [Operational Guidance](#11-operational-guidance)
+12. [Risks, Constraints, and Assumptions](#12-risks-constraints-and-assumptions)
+13. [Recommendations and Next Improvements](#13-recommendations-and-next-improvements)
+14. [Appendix: Commands Reference](#14-appendix-commands-reference)
 
-## 1. Introduction
+---
 
-This report documents the DevOps and CI/CD implementation for the Food App repository. The application is a frontend-only React and Vite project, and the delivery model is designed to support reproducible builds, controlled image publication, and simple container-based deployment. The document is intentionally self-contained and serves as the primary operational reference for build, deploy, security, and recovery procedures.
+## 1. Executive Summary
 
-## 2. Project Scope and System Context
+This repository now contains an integrated DevOps setup for a frontend-only React + Vite application with the following delivery options:
+
+- Docker-based deployment for lightweight single-host runtime.
+- Kubernetes deployment using raw manifests (`kustomize`) for minimal overhead.
+- Kubernetes deployment using Helm chart for parameterized releases.
+- Jenkins pipeline with selectable deployment target (`docker` or `kubernetes`) and Kubernetes method (`kustomize` or `helm`).
+- GitHub Actions pipelines already active and passing in the remote repository.
+
+The implementation is intentionally optimized for simplicity and lower resource consumption while preserving CI/CD automation and deployment flexibility.
+
+---
+
+## 2. Project Scope and Context
 
 ### 2.1 Application type
 
-The repository contains a frontend-only single-page application. There is no backend service in this codebase, and deployment should therefore remain limited to the frontend runtime.
+- Frontend-only SPA (React + Vite).
+- No backend service in this repository.
 
-### 2.2 Core technologies
+### 2.2 DevOps scope covered
 
-- Framework and build tool: React + Vite
-- Package manager and scripts: npm
-- Containerization: Docker and Docker Compose
-- CI/CD provider: GitHub Actions
-- Image registry: GitHub Container Registry (GHCR)
-- Quality and security tooling: ESLint, TypeScript, SonarQube or SonarCloud, CodeQL, and Snyk
+- Build and package app artifact.
+- Containerize app image.
+- Run locally with Docker Compose.
+- Deploy to Kubernetes via either:
+  - raw manifests (`kubectl apply -k`), or
+  - Helm chart (`helm upgrade --install`).
+- Orchestrate CI/CD lifecycle via Jenkins and GitHub Actions.
 
-### 2.3 Repository artifacts
+### 2.3 Primary infrastructure files
 
-- Application scripts: `package.json`
-- Production image build: `Dockerfile`
-- Runtime definition: [docker-compose.yml](docker-compose.yml)
-- CI workflow: `.github/workflows/ci.yml`
-- Docker build and deploy workflow: `.github/workflows/docker-build.yml`
-- Security workflow: `.github/workflows/security-scan.yml`
+- `Dockerfile`
+- `docker-compose.yml`
+- `k8s/deployment.yaml`
+- `k8s/service.yaml`
+- `k8s/kustomization.yaml`
+- `helm/food-app/Chart.yaml`
+- `helm/food-app/values.yaml`
+- `helm/food-app/templates/deployment.yaml`
+- `helm/food-app/templates/service.yaml`
+- `Jenkinsfile`
+- `.github/workflows/*.yml`
 
-## 3. Architecture Overview
+---
 
-### 3.1 Delivery model
+## 3. Current Implementation Status
 
-The delivery model follows a standard flow: source changes are committed, verified in CI, packaged into a container image, published to GHCR, and deployed with Docker Compose. Because the application is frontend-only, no backend service is started during deployment.
+### 3.1 Completed
 
-### 3.2 Operational principle
+1. Docker multi-stage image build.
+2. Lightweight Docker Compose runtime with a robust Node-based health check.
+3. Kubernetes manifests with resource limits/requests and readiness/liveness probes.
+4. Helm chart (v2) with configurable image, service, probes, and resources.
+5. Jenkins deploy target selection:
+   - `DEPLOY_TARGET=docker`
+   - `DEPLOY_TARGET=kubernetes`
+6. Jenkins Kubernetes deploy method selection:
+   - `K8S_DEPLOY_METHOD=kustomize`
+   - `K8S_DEPLOY_METHOD=helm`
 
-The pipeline is designed around three principles:
+### 3.2 Already existing and intentionally preserved
 
-- reproducibility through pinned scripts and container builds,
-- traceability through immutable image tags and workflow logs,
-- minimal runtime scope through a frontend-only deployment definition.
+- GitHub Actions workflows were not changed in this pass because they are already running and passing.
 
-### 3.3 Current implementation state
+---
 
-- Pushes to `main` trigger the CI workflow.
-- Successful CI triggers the Docker build and deploy workflow.
-- The deployment workflow ends with bounded log output rather than an open-ended log stream.
+## 4. Docker Implementation (Detailed)
 
-## 4. Continuous Integration Process
+### 4.1 Build strategy
 
-### 4.1 Purpose
+The `Dockerfile` uses a multi-stage build:
 
-The CI pipeline verifies correctness before any image is published or deployed. It exists to detect issues early in the lifecycle and to provide maintainers with clear job-level feedback.
+1. **Builder stage** (`node:18-alpine`)
+   - Installs dependencies with `npm ci --legacy-peer-deps`.
+   - Builds production assets using `npm run build`.
+2. **Runtime stage** (`node:18-alpine`)
+   - Installs `serve` globally.
+   - Copies only built `dist` artifacts.
+   - Exposes port `5173`.
 
-### 4.2 Job sequence
+This approach reduces runtime image footprint compared to a single-stage build that keeps dev dependencies.
 
-The workflow is organized into the following jobs:
+### 4.2 Runtime health checks
 
-1. Checkout and install dependencies
-2. Lint source code
-3. Execute unit tests
-4. Build the application
-5. Run code quality analysis
-6. Build and push the Docker image
-7. Deploy the application
+- Docker image includes `HEALTHCHECK` in `Dockerfile`.
+- Compose service health check in `docker-compose.yml` uses a Node one-liner HTTP probe.
 
-### 4.3 Job responsibilities
+Reason for Node-based check:
+- avoids dependency on `curl` binary inside container,
+- improves portability and reliability across minimal images.
 
-#### 4.3.1 Checkout and install dependencies
+### 4.3 Compose design
 
-This job clones the repository and installs packages using `npm ci --legacy-peer-deps`. The use of deterministic installation reduces environment drift between developers and CI.
+`docker-compose.yml` includes only one service (`food-app`) because this is a frontend-only repository. This keeps runtime simple and low-resource.
 
-#### 4.3.2 Linting
+### 4.4 Docker operational behavior
 
-The lint job runs ESLint against the source tree. It provides rapid feedback on syntax, style, and rule violations.
+- Restart policy: `unless-stopped`.
+- Exposed port: `5173:5173`.
+- Service labels for identification.
+- Health gate intervals and retries configured for basic runtime resilience.
 
-#### 4.3.3 Testing
+---
 
-The test job currently runs the defined test command and uploads coverage data when available. The repository may evolve toward richer test coverage, but the CI structure already reserves a distinct validation step.
+## 5. Kubernetes Implementation (Detailed)
 
-#### 4.3.4 Build verification
+### 5.1 Manifests location
 
-The build job runs `npm run build` and confirms that the Vite production build completes successfully. This is the main functional gate for the frontend artifact.
+- `k8s/deployment.yaml`
+- `k8s/service.yaml`
+- `k8s/kustomization.yaml`
 
-#### 4.3.5 Code quality analysis
+### 5.2 Deployment design
 
-Sonar-based analysis provides static review of maintainability, complexity, and code smell indicators. It is a quality signal and not a runtime dependency.
+`k8s/deployment.yaml` provides:
 
-### 4.4 Local validation command set
+- single replica (`replicas: 1`) for lightweight operation,
+- container image default: `ghcr.io/keerthinarayan/food-app:latest`,
+- resource requests and limits:
+  - requests: `100m CPU`, `64Mi memory`,
+  - limits: `250m CPU`, `128Mi memory`,
+- readiness and liveness probes on `/` at container port `5173`.
 
-The local validation sequence is:
+### 5.3 Service design
+
+`k8s/service.yaml` exposes app internally as `ClusterIP`:
+
+- service port: `80`,
+- target port: `5173`.
+
+Access pattern is via port-forward (or Ingress when added later).
+
+### 5.4 Kustomize behavior
+
+`k8s/kustomization.yaml` references deployment and service for consistent apply/delete operations:
+
+- apply: `kubectl apply -k k8s`
+- delete: `kubectl delete -k k8s`
+
+---
+
+## 6. Helm Implementation (Detailed)
+
+### 6.1 Chart structure
+
+Helm chart path: `helm/food-app`
+
+Key files:
+
+- `Chart.yaml` (chart metadata)
+- `values.yaml` (defaults)
+- `templates/deployment.yaml`
+- `templates/service.yaml`
+- `templates/_helpers.tpl`
+- `templates/NOTES.txt`
+
+### 6.2 Default values
+
+`values.yaml` includes lightweight defaults:
+
+- `replicaCount: 1`
+- image repository/tag/pull policy
+- service type and ports
+- resources (requests/limits)
+- probe timings and paths
+
+### 6.3 Templating behavior
+
+- Deployment and Service names are generated through helper templates.
+- Labels follow Helm conventions (`app.kubernetes.io/*`) for observability and release tracking.
+- Probes and resources are driven by `values.yaml` and can be overridden per environment.
+
+### 6.4 Helm deployment pattern
+
+The chart supports release-driven deployment:
+
+```bash
+helm upgrade --install food-app helm/food-app \
+  --namespace default \
+  --create-namespace
+```
+
+Image overrides are supported at deploy time:
+
+```bash
+helm upgrade --install food-app helm/food-app \
+  --set image.repository=ghcr.io/keerthinarayan/food-app \
+  --set image.tag=latest
+```
+
+---
+
+## 7. Jenkins Pipeline Implementation (Detailed)
+
+### 7.1 Jenkins role in this repository
+
+Jenkins acts as a full orchestration layer for:
+
+- source checkout,
+- dependency install,
+- lint/test/build,
+- Sonar scanning,
+- Docker image build/push,
+- deploy to Docker or Kubernetes,
+- health checks.
+
+### 7.2 Parameterized deployment model
+
+`Jenkinsfile` now supports configurable deployment behavior through parameters:
+
+1. `DEPLOY_TARGET`
+   - `docker` or `kubernetes`
+2. `K8S_DEPLOY_METHOD`
+   - `kustomize` or `helm`
+3. `K8S_NAMESPACE`
+4. `HELM_RELEASE`
+5. `HELM_CHART_PATH`
+
+This enables one pipeline to support multiple deployment strategies without duplicate job definitions.
+
+### 7.3 Stage-by-stage behavior
+
+Pipeline stages:
+
+1. Checkout
+2. Install Dependencies
+3. Code Quality Analysis
+4. Unit Tests
+5. Build
+6. SonarQube Analysis
+7. Docker Build
+8. Docker Push (only `main`)
+9. Deploy (only `main`)
+10. Health Check
+
+### 7.4 Deploy stage logic
+
+- If `DEPLOY_TARGET=docker`:
+  - runs `docker compose down`, `docker compose up -d`, `docker compose ps`.
+- If `DEPLOY_TARGET=kubernetes` and `K8S_DEPLOY_METHOD=kustomize`:
+  - `kubectl apply -k k8s`,
+  - updates image via `kubectl set image`.
+- If `DEPLOY_TARGET=kubernetes` and `K8S_DEPLOY_METHOD=helm`:
+  - validates Helm is installed on agent,
+  - runs `helm upgrade --install` with image overrides,
+  - forces deterministic deployment name with `fullnameOverride=food-app`.
+
+### 7.5 Health verification in Jenkins
+
+- Docker target: HTTP check on `http://localhost:5173`.
+- Kubernetes target: rollout status check for `deployment/food-app` in selected namespace.
+
+### 7.6 Why this Jenkins design is useful
+
+- keeps one pipeline for all deployment modes,
+- provides switchable but controlled release behavior,
+- remains compatible with low-resource lab/mini-project setups,
+- is easy to demonstrate in academic/project reporting.
+
+---
+
+## 8. GitHub Actions CI/CD Status
+
+GitHub Actions workflows are already active and passing in repository history. They were intentionally not modified in this phase to avoid destabilizing a working CI/CD flow.
+
+Active workflow categories:
+
+- CI/CD pipeline,
+- security scanning,
+- Docker build/deploy workflow.
+
+---
+
+## 9. End-to-End Deployment Flows
+
+### 9.1 Flow A: Local Docker runtime
+
+1. Build image.
+2. Start compose service.
+3. Verify health and access on port `5173`.
+
+### 9.2 Flow B: Kubernetes via kustomize
+
+1. Build/push image.
+2. Apply manifests with `kubectl apply -k k8s`.
+3. Update deployment image if needed.
+4. Wait for rollout.
+
+### 9.3 Flow C: Kubernetes via Helm
+
+1. Build/push image.
+2. Run `helm upgrade --install` with image repo/tag overrides.
+3. Wait for rollout and verify service/pods.
+
+### 9.4 Flow D: Jenkins automated execution
+
+1. Choose parameters (`DEPLOY_TARGET`, `K8S_DEPLOY_METHOD`, etc.).
+2. Jenkins executes full CI + package + deploy + health checks.
+3. Logs remain centralized and auditable in Jenkins build history.
+
+---
+
+## 10. Validation and Verification Results
+
+### 10.1 Completed checks
+
+- Project build (`npm run build`) succeeded.
+- Docker Compose config parsing (`docker compose config`) succeeded.
+- Kubernetes render check (`kubectl kustomize k8s`) succeeded.
+- Jenkinsfile editor diagnostics show no syntax errors.
+
+### 10.2 Helm validation note
+
+In this local environment, Helm CLI availability may vary. If Helm is installed on the deployment host/agent, validate with:
+
+```bash
+helm lint helm/food-app
+helm template food-app helm/food-app
+```
+
+### 10.3 Validation interpretation
+
+Current configuration is consistent and deployable across Docker and Kubernetes models, with Jenkins orchestrating either path.
+
+---
+
+## 11. Operational Guidance
+
+### 11.1 Lightweight resource guidance
+
+- Keep single replica in non-production environments.
+- Preserve current conservative resource limits.
+- Use `ClusterIP + port-forward` for local/dev clusters.
+
+### 11.2 Jenkins agent requirements
+
+For full feature support, Jenkins agent should have:
+
+- `docker` + Compose plugin,
+- `kubectl`,
+- `helm` (if Helm method is used),
+- Node.js/npm.
+
+### 11.3 Secrets and credentials
+
+- Docker push credentials in Jenkins (`docker-hub-credentials`).
+- GitHub Actions secrets remain managed in repository settings.
+
+---
+
+## 12. Risks, Constraints, and Assumptions
+
+1. Application is frontend-only; backend/database assumptions are out of scope.
+2. Helm deploy path requires Helm binary on Jenkins agent.
+3. Kubernetes deploy path requires cluster connectivity from Jenkins agent.
+4. Registry/repository naming must be consistent across Jenkins and cluster pull policies.
+
+---
+
+## 13. Recommendations and Next Improvements
+
+1. Standardize registry target naming between Jenkins and GHCR strategy to avoid confusion.
+2. Add optional Ingress manifest and TLS path for production-like Kubernetes access.
+3. Add smoke-test stage after Kubernetes deploy (HTTP check via port-forward job or in-cluster probe).
+4. Add versioned release tagging strategy for immutable rollbacks.
+5. Add Helm lint/template checks in Jenkins pre-deploy stage when Helm mode is selected.
+
+---
+
+## 14. Appendix: Commands Reference
+
+### 14.1 Local build and validation
 
 ```bash
 npm install
@@ -119,217 +405,48 @@ npm run type-check
 npm run build
 ```
 
-This sequence mirrors the critical logic of CI and should be used before pushing major changes.
-
-### 4.5 Jenkins Pipeline and Its Use
-
-Jenkins is a continuous integration and continuous delivery automation server. In this project, its purpose is to orchestrate the full software delivery process in a controlled and repeatable manner. The `Jenkinsfile` defines the pipeline as code, which makes the build and deployment process versioned alongside the application source.
-
-#### 4.5.1 Practical use of Jenkins
-
-Jenkins is used to automate the following activities:
-
-1. retrieve the latest code from source control,
-2. install dependencies in a clean build environment,
-3. run code quality checks,
-4. execute tests,
-5. build the production bundle,
-6. create and tag a Docker image,
-7. publish the image when the branch is `main`,
-8. deploy the application container,
-9. verify the application health after deployment.
-
-#### 4.5.2 Pipeline structure in this repository
-
-The `Jenkinsfile` follows a staged pipeline model. The configured stages are:
-
-- Checkout,
-- Install Dependencies,
-- Code Quality Analysis,
-- Unit Tests,
-- Build,
-- SonarQube Analysis,
-- Docker Build,
-- Docker Push,
-- Deploy,
-- Health Check.
-
-#### 4.5.3 Why Jenkins is useful
-
-Jenkins is useful because it provides centralized automation for build, test, scan, package, and deploy operations. It reduces manual work, improves consistency, and makes the delivery process auditable. For a mini project, it demonstrates a complete DevOps workflow from source code to deployment.
-
-#### 4.5.4 Summary of Jenkins in this project
-
-In this repository, Jenkins acts as the orchestration layer for the CI/CD process. It complements the Docker-based deployment model and shows how a project can be built, tested, scanned, containerized, and deployed in an automated pipeline.
-
-## 5. Container Build and Registry Strategy
-
-### 5.1 Docker build approach
-
-The application is packaged using a multi-stage Docker build. This reduces runtime size and ensures that the production image contains only the necessary static output and serving configuration.
-
-### 5.2 Build tooling
-
-Docker Buildx is used for the container build stage. Registry-backed caching reduces build time for repeated runs.
-
-### 5.3 Registry strategy
-
-GHCR stores the published image. Tags are derived from branch, commit SHA, and release metadata where applicable. This ensures that each production deployment can be traced back to a concrete source state.
-
-### 5.4 Image naming rules
-
-Image references are lowercased to satisfy registry requirements. The canonical image pattern is `ghcr.io/keerthinarayan/food-app`.
-
-## 6. Continuous Deployment Process
-
-### 6.1 Trigger mechanism
-
-After CI completes successfully, a `workflow_run` event triggers the Docker build and deploy workflow. This separation ensures that deployment only occurs after the main validation pipeline succeeds.
-
-### 6.2 Deployment sequence
-
-The deployment workflow performs the following operations:
-
-1. Pull the current image.
-2. Start the compose stack.
-3. Display service status.
-4. Emit bounded logs.
-
-The bounded log output is important because it prevents the workflow from remaining active indefinitely.
-
-### 6.3 Compose model
-
-The compose file defines a single frontend service. Because the repository does not contain backend code, no `api-server` or database service should be introduced into the runtime model.
-
-### 6.4 Deployment verification
-
-The expected deployment outcome is a running frontend container that responds on the configured port and passes its health check.
-
-## 7. Security and Quality Controls
-
-### 7.1 Static analysis
-
-ESLint and TypeScript type checking provide baseline code correctness and consistency checks.
-
-### 7.2 Software composition analysis
-
-Snyk and npm audit are intended to identify dependency vulnerabilities. These checks support dependency hygiene and risk visibility.
-
-### 7.3 Application security analysis
-
-CodeQL provides source-level security review. Sonar-based tools contribute maintainability and defect indicators.
-
-### 7.4 Secret management
-
-Secrets must be stored in GitHub secrets rather than committed to source control. Typical secrets include `SONAR_TOKEN`, `SNYK_TOKEN`, and any private access tokens required for repository automation.
-
-## 8. Operational Management
-
-### 8.1 Monitoring
-
-The current deployment model includes a basic container health check. For operational maturity, external uptime monitoring and centralized log aggregation are recommended.
-
-### 8.2 Incident handling
-
-If deployment fails, operators should verify three points in order:
-
-1. the CI workflow completed successfully,
-2. the image exists in GHCR,
-3. the compose file matches the frontend-only architecture.
-
-### 8.3 Rollback
-
-Rollback is performed by redeploying a previous known-good image tag. This is the safest recovery mechanism because the release is tied to an immutable artifact.
-
-### 8.4 Environment separation
-
-Development, CI, and production should remain distinct. Local development uses Vite directly, CI runs in GitHub-hosted runners, and production uses Docker Compose on a host with the Compose plugin installed.
-
-## 9. Release and Recovery Procedures
-
-### 9.1 Release model
-
-The release model should use annotated tags such as `v1.0.0`. A release workflow can build the image, tag it, publish it, and optionally create GitHub Release notes.
-
-### 9.2 Release validation
-
-Before release, the following conditions should be satisfied:
-
-- the application builds successfully,
-- the image is published to GHCR,
-- the deployment host can pull the image,
-- the frontend loads correctly in the browser.
-
-### 9.3 Recovery model
-
-Recovery should use the last known-good image rather than rebuilding under pressure. This reduces operational risk and provides a clear rollback path.
-
-## 10. Migration Guidance
-
-### 10.1 Node 24 compatibility
-
-GitHub Actions currently reports Node.js 20 deprecation warnings for several actions. This is not an immediate blocker because the workflows are succeeding, but it is a required maintenance item for long-term stability.
-
-### 10.2 Safe upgrade path
-
-1. Review the currently used Actions versions.
-2. Update one workflow at a time.
-3. Re-run the workflow after each change.
-4. Confirm checkout, buildx, registry login, metadata generation, and image push still succeed.
-5. Record the verified versions in this report.
-
-### 10.3 Priority order
-
-The practical order of maintenance work is:
-
-1. keep the report self-contained,
-2. maintain the frontend-only deployment model,
-3. update workflow actions for Node 24 compatibility,
-4. add more advanced release automation only after the base pipeline remains stable.
-
-## 11. Recommendations
-
-1. Keep the report in a single file so that it remains a complete operational reference.
-2. Preserve the frontend-only compose model and avoid adding backend placeholders.
-3. Update GitHub Actions dependencies to Node 24–compatible versions when time permits.
-4. Add a release workflow if versioned production deployments are required.
-5. Add external monitoring and centralized logging if the deployment is used in a production setting.
-
-## 12. Appendix: Useful Commands
-
-### 12.1 Local development
+### 14.2 Docker
 
 ```bash
-npm install
-npm run dev
-```
-
-### 12.2 Local validation
-
-```bash
-npm run lint
-npm run type-check
-npm run build
-```
-
-### 12.3 Container build and run
-
-```bash
-npm run docker:build
-npm run docker:run
-```
-
-### 12.4 Deployment troubleshooting
-
-```bash
-docker compose pull
+docker build -t food-app:latest .
 docker compose up -d
 docker compose ps
 docker compose logs --tail=200
 ```
 
-## 13. Conclusion
+### 14.3 Kubernetes (kustomize)
 
-This report now presents the DevOps implementation in a formal, structured format. It describes the project context, CI/CD flow, container strategy, deployment procedure, security controls, operational practices, recovery approach, and future migration priorities in a single self-contained document.
+```bash
+kubectl apply -k k8s
+kubectl get deploy,svc,pods -l app=food-app
+kubectl port-forward svc/food-app 5173:80
+```
 
+### 14.4 Helm
 
+```bash
+helm lint helm/food-app
+helm template food-app helm/food-app
+helm upgrade --install food-app helm/food-app --namespace default --create-namespace
+```
+
+### 14.5 Jenkins deployment parameter examples
+
+- Docker deploy:
+  - `DEPLOY_TARGET=docker`
+- Kubernetes deploy with kustomize:
+  - `DEPLOY_TARGET=kubernetes`
+  - `K8S_DEPLOY_METHOD=kustomize`
+  - `K8S_NAMESPACE=default`
+- Kubernetes deploy with Helm:
+  - `DEPLOY_TARGET=kubernetes`
+  - `K8S_DEPLOY_METHOD=helm`
+  - `K8S_NAMESPACE=default`
+  - `HELM_RELEASE=food-app`
+  - `HELM_CHART_PATH=helm/food-app`
+
+---
+
+## Conclusion
+
+The repository now includes a complete and practical DevOps implementation for Docker, Kubernetes, Helm, and Jenkins, while preserving existing successful GitHub Actions CI/CD behavior. The setup is purposefully lightweight, modular, and suitable for both demonstration and iterative production hardening.

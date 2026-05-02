@@ -1,6 +1,14 @@
 pipeline {
     agent any
 
+    parameters {
+        choice(name: 'DEPLOY_TARGET', choices: ['docker', 'kubernetes'], description: 'Choose deployment target')
+        choice(name: 'K8S_DEPLOY_METHOD', choices: ['kustomize', 'helm'], description: 'Kubernetes deploy method')
+        string(name: 'K8S_NAMESPACE', defaultValue: 'default', description: 'Kubernetes namespace for deploy')
+        string(name: 'HELM_RELEASE', defaultValue: 'food-app', description: 'Helm release name')
+        string(name: 'HELM_CHART_PATH', defaultValue: 'helm/food-app', description: 'Helm chart path')
+    }
+
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
         disableConcurrentBuilds()
@@ -91,6 +99,7 @@ pipeline {
                 sh '''
                     docker build -t ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} .
                     docker tag ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} ${REGISTRY}/${IMAGE_NAME}:latest
+                    docker tag ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} food-app:latest
                 '''
             }
         }
@@ -120,12 +129,30 @@ pipeline {
             }
             steps {
                 script {
-                    echo "🚀 Deploying application..."
+                    echo "🚀 Deploying application to ${params.DEPLOY_TARGET}..."
                 }
                 sh '''
-                    docker-compose down || true
-                    docker-compose up -d
-                    docker-compose ps
+                    if [ "${DEPLOY_TARGET}" = "kubernetes" ]; then
+                        kubectl get ns ${K8S_NAMESPACE} >/dev/null 2>&1 || kubectl create namespace ${K8S_NAMESPACE}
+                        if [ "${K8S_DEPLOY_METHOD}" = "helm" ]; then
+                            command -v helm >/dev/null 2>&1 || { echo "❌ helm not found on Jenkins agent"; exit 1; }
+                            helm upgrade --install ${HELM_RELEASE} ${HELM_CHART_PATH} \
+                              --namespace ${K8S_NAMESPACE} \
+                              --create-namespace \
+                              --set image.repository=${REGISTRY}/${IMAGE_NAME} \
+                              --set image.tag=${IMAGE_TAG} \
+                              --set fullnameOverride=food-app
+                        else
+                            kubectl apply -k k8s -n ${K8S_NAMESPACE}
+                            kubectl set image deployment/food-app food-app=${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} -n ${K8S_NAMESPACE}
+                        fi
+                        kubectl rollout status deployment/food-app -n ${K8S_NAMESPACE} --timeout=120s
+                        kubectl get all -n ${K8S_NAMESPACE}
+                    else
+                        docker compose down || true
+                        docker compose up -d
+                        docker compose ps
+                    fi
                 '''
             }
         }
@@ -136,9 +163,14 @@ pipeline {
                     echo "🏥 Performing health checks..."
                 }
                 sh '''
-                    sleep 10
-                    curl -f http://localhost:5173 || exit 1
-                    echo "✅ Application is healthy"
+                    if [ "${DEPLOY_TARGET}" = "kubernetes" ]; then
+                        kubectl rollout status deployment/food-app -n ${K8S_NAMESPACE} --timeout=120s
+                        echo "✅ Kubernetes deployment is healthy"
+                    else
+                        sleep 10
+                        curl -f http://localhost:5173 || exit 1
+                        echo "✅ Docker deployment is healthy"
+                    fi
                 '''
             }
         }

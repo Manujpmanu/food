@@ -19,6 +19,10 @@
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
     "docker:clean": "docker-compose down -v && docker system prune -f",
+    "k8s:apply": "kubectl apply -k k8s",
+    "k8s:delete": "kubectl delete -k k8s --ignore-not-found",
+    "k8s:status": "kubectl get deploy,svc,pods -l app=food-app",
+    "k8s:port-forward": "kubectl port-forward svc/food-app 5173:80",
     "setup": "npm install --legacy-peer-deps && npm run docker:up",
     "cleanup": "npm run docker:down && rm -rf dist coverage node_modules",
     "ci": "npm run lint && npm run type-check && npm run build"
