@@ -56,4 +56,6 @@ jobs:
           echo "Deploying to production..."
           docker compose pull
           docker compose up -d
-          docker compose logs -f
+          docker compose ps
+          # Show recent logs but do not follow indefinitely so the workflow can finish
+          docker compose logs --tail=200
