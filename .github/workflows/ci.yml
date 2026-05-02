@@ -10,7 +10,7 @@ on:
 env:
   NODE_VERSION: '18'
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/food-app
+  IMAGE_NAME: keerthinarayan/food-app
 
 jobs:
   checkout-and-install:
