@@ -1,0 +1,75 @@
+version: '3.9'
+
+services:
+  # Food App Frontend
+  food-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: food-app-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - food-network
+    labels:
+      - "app=food-ordering"
+      - "environment=production"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: API Backend Service
+  api-server:
+    image: node:18-alpine
+    container_name: food-app-api
+    working_dir: /app
+    volumes:
+      - ./:/app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    command: npm run server
+    restart: unless-stopped
+    networks:
+      - food-network
+    depends_on:
+      - food-app
+    labels:
+      - "app=food-ordering"
+      - "environment=production"
+
+  # Database Service (Example: MongoDB)
+  database:
+    image: mongo:6.0-alpine
+    container_name: food-app-db
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+    networks:
+      - food-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  food-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local
